@@ -225,9 +225,9 @@ export default function Train() {
       </header>
 
       {/* 主体 */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* 左：标准动画 */}
-        <div className="w-1/2 bg-dark-800 flex flex-col items-center justify-center p-6">
+        <div className="min-w-0 flex-[1.05] bg-dark-800 flex flex-col items-center justify-center p-4">
           <AnimatePresence mode="wait">
             <motion.div
               key={step?.id}
@@ -241,7 +241,7 @@ export default function Train() {
         </div>
 
         {/* 右：摄像头 */}
-        <div className="w-1/2 relative bg-black flex flex-col">
+        <div className="min-w-0 flex-[0.95] relative bg-black flex flex-col">
           {cameraState === "loading" && (
             <div className="flex-1 flex items-center justify-center text-gray-400">
               <div>
