@@ -5,7 +5,7 @@ import { courses } from "../data/courses";
 import { useTimer } from "../hooks/useTimer";
 import { usePose } from "../hooks/usePose";
 import { svgComponents } from "../components/svg-animations";
-import { speak, stopSpeaking } from "../utils/tts";
+import { speak, stopSpeaking, playBeep } from "../utils/tts";
 import { saveRecord, loadSettings } from "../utils/storage";
 import { fetchAIReport } from "../utils/deepseek";
 import { getPoseSamples, clearPoseSamples } from "../utils/pose-analysis";
@@ -51,6 +51,7 @@ export default function Train() {
 
   const step = course?.steps[stepIndex];
   const isTraining = !calibrating && calibration && !paused;
+  const hasTimerStarted = useRef(false);
 
   // 累积偏差（节流：每 2 秒一次）
   const handleFeedback = useCallback((fb: PoseFeedback) => {
@@ -81,6 +82,7 @@ export default function Train() {
     (idx: number) => {
       const s = course?.steps[idx];
       if (!s) return;
+      hasTimerStarted.current = true;
       start(s.durationSeconds);
       speak(s.ttsText);
     },
@@ -108,9 +110,10 @@ export default function Train() {
     }
   }, [calibration, calibrating]);
 
-  // 倒计时结束 → 下一个
+  // 倒计时结束 → 自动切换下一个动作
   useEffect(() => {
-    if (remaining > 0 || !running) return;
+    if (remaining > 0 || !hasTimerStarted.current) return;
+    hasTimerStarted.current = false;
     if (stepIndex < (course?.steps.length ?? 0) - 1) {
       const next = stepIndex + 1;
       setStepIndex(next);
@@ -118,6 +121,13 @@ export default function Train() {
     } else {
       finishTraining();
     }
+  }, [remaining, running]);
+
+  // 倒计时最后 5 秒播放提示音
+  useEffect(() => {
+    if (!running || remaining > 5 || remaining <= 0) return;
+    const freq = 600 + (5 - remaining) * 150; // 音调逐渐升高
+    playBeep(freq, 0.12);
   }, [remaining, running]);
 
   const goNext = () => {
