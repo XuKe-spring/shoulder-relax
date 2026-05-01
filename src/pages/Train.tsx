@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { courses } from "../data/courses";
+import { ExerciseAnimation } from "../components/svg-animations";
+import { getCourseById } from "../data/courses";
 import { useTimer } from "../hooks/useTimer";
 import { usePose } from "../hooks/usePose";
-import { svgComponents } from "../components/svg-animations";
 import { speak, stopSpeaking, playBeep } from "../utils/tts";
 import { saveRecord, loadSettings } from "../utils/storage";
 import { fetchAIReport } from "../utils/deepseek";
@@ -28,7 +27,7 @@ const FEEDBACK_LABEL_COLOR: Record<string, string> = {
 export default function Train() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const course = courses.find((c) => c.id === id);
+  const course = getCourseById(id);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -208,8 +207,6 @@ export default function Train() {
     return <div className="min-h-screen flex items-center justify-center bg-dark-900 text-white"><p>课程未找到</p></div>;
   }
 
-  const SvgAnim = svgComponents[step?.svgKey ?? ""];
-
   return (
     <div className="min-h-screen bg-dark-900 text-white flex flex-col">
       {/* 顶栏 */}
@@ -228,16 +225,7 @@ export default function Train() {
       <div className="flex-1 flex min-h-0">
         {/* 左：标准动画 */}
         <div className="min-w-0 flex-[1.05] bg-dark-800 flex flex-col items-center justify-center p-4">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step?.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {SvgAnim && <SvgAnim playing={isTraining} />}
-            </motion.div>
-          </AnimatePresence>
+          {step && <ExerciseAnimation type={step.svgAnimation} title={step.name} />}
         </div>
 
         {/* 右：摄像头 */}

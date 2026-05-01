@@ -17,3 +17,138 @@ body {
   0%, 100% { opacity: 0.5; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
 }
+
+/* ── Codex SVG 动画组件样式 ── */
+.animation-stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  place-items: center;
+  min-height: 0;
+  padding: 16px;
+  background: #0b1628;
+}
+
+.panel-label {
+  justify-self: start;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.exercise-svg {
+  width: min(72vh, 82%);
+  max-width: 560px;
+  filter: drop-shadow(0 24px 60px rgba(77, 212, 172, 0.14));
+}
+
+.shoulder-front-svg {
+  width: min(100%, 440px);
+  max-width: none;
+}
+
+.dual-action-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(168px, 0.42fr);
+  grid-template-areas:
+    "front side"
+    "front points";
+  gap: 14px;
+  align-items: stretch;
+  width: min(96%, 720px);
+}
+
+.front-view {
+  grid-area: front;
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  min-width: 0;
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.side-view {
+  grid-area: side;
+  min-height: 230px;
+  padding: 12px 8px 4px;
+  min-width: 0;
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.side-view-large {
+  min-height: 250px;
+}
+
+.side-view svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.view-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.68);
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.action-points {
+  grid-area: points;
+  align-self: stretch;
+  padding: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 8px;
+  background: rgba(113, 63, 18, 0.18);
+}
+
+.action-points strong {
+  display: block;
+  color: #fef3c7;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.action-points ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 19px;
+  color: #e5eef8;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.animation-caption {
+  width: 100%;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #f8fafc;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+@media (max-width: 920px) {
+  .dual-action-view {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "front"
+      "side"
+      "points";
+    width: 100%;
+  }
+  .front-view { min-height: 330px; }
+  .side-view { width: min(260px, 78%); justify-self: center; min-height: 0; }
+}

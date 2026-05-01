@@ -1,28 +1,38 @@
-// 课程动作步骤
+export type AnimationKey =
+  | "neckSideStretch"
+  | "neckTurn"
+  | "shoulderShrug"
+  | "shoulderRoll"
+  | "chestOpen"
+  | "chinTuck"
+  | "armRaise"
+  | "sideStretch"
+  | "neckCircle"
+  | "scapulaSqueeze"
+  | "thoracicRotate"
+  | "fullBodyReach";
+
 export interface CourseStep {
-  id: string;
   name: string;
   durationSeconds: number;
   ttsText: string;
-  svgKey: string;
+  svgAnimation: AnimationKey;
 }
 
-// 课程定义
 export interface Course {
   id: string;
   name: string;
   description: string;
+  totalSeconds: number;
   steps: CourseStep[];
 }
 
-// 姿态偏差计数
 export interface PoseDeviationCounts {
   shoulderShrug: number;
   slouch: number;
   forwardHead: number;
 }
 
-// 姿势反馈
 export interface PoseFeedback {
   level: "good" | "warn" | "bad" | "idle";
   label: string;
@@ -30,7 +40,6 @@ export interface PoseFeedback {
   deviations: PoseDeviationCounts;
 }
 
-// 训练历史记录
 export interface WorkoutRecord {
   date: string;
   courseId: string;
@@ -42,7 +51,6 @@ export interface WorkoutRecord {
   deviations: PoseDeviationCounts;
 }
 
-// 用户设置
 export interface UserSettings {
   reminderInterval: number;
   reminderEnabled: boolean;
@@ -51,7 +59,6 @@ export interface UserSettings {
   deepseekApiKey: string;
 }
 
-// DeepSeek 分析报告
 export interface AIReport {
   summary: string;
   mainIssue: string;
@@ -60,7 +67,6 @@ export interface AIReport {
   encouragement: string;
 }
 
-// 姿态校准基准
 export interface CalibrationData {
   shoulderY: number;
   shoulderHipOffset: number | null;
@@ -72,8 +78,5 @@ export interface CalibrationData {
   };
 }
 
-// 姿态偏差类型
 export type DeviationType = "shoulderShrug" | "slouch" | "forwardHead";
-
-// 姿势状态
 export type PoseStatus = "good" | "warning" | "bad";
