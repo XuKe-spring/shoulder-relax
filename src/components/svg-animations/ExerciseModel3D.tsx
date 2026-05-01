@@ -40,7 +40,7 @@ const ANIMS: Record<string, AnimConfig> = {
     rightUpperArm: [[0, 0, 0], [0.3, 0, 0.8], [0, 0, 0]],
   },
   "chin-tuck": {
-    headTranslate: [[0, 0, 0], [0, -0.08, 0.15], [0, 0, 0]],
+    headTranslate: [[0, 0, 0], [0, -0.08, 0.18], [0, 0, 0]],
   },
   "arm-raise": {
     leftUpperArm: [[0, 0, 0], [-2.2, 0, 0], [0, 0, 0]],
@@ -57,51 +57,44 @@ const ANIMS: Record<string, AnimConfig> = {
   },
 };
 
-// ── 辅助：创建骨头（圆柱体，从 p1 到 p2） ──────────────────
+// ── 辅助函数 ──────────────────────────────────────────────
 function createBone(
   from: [number, number, number],
   to: [number, number, number],
   radius: number,
-  material: THREE.Material,
+  mat: THREE.Material,
 ): THREE.Mesh {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const dz = to[2] - from[2];
-  const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  const geo = new THREE.CylinderGeometry(radius, radius, length, 8);
-  const mesh = new THREE.Mesh(geo, material);
-
-  // 把圆柱体中心放在 from→to 的中点
-  const mx = (from[0] + to[0]) / 2;
-  const my = (from[1] + to[1]) / 2;
-  const mz = (from[2] + to[2]) / 2;
-  mesh.position.set(mx, my, mz);
-
-  // 旋转使圆柱体朝向目标方向
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const geo = new THREE.CylinderGeometry(radius, radius, len, 8);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2);
   const dir = new THREE.Vector3(dx, dy, dz).normalize();
-  const quat = new THREE.Quaternion();
-  quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
   mesh.setRotationFromQuaternion(quat);
-
   return mesh;
 }
 
-function createJoint(pos: [number, number, number], radius: number, material: THREE.Material): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(radius, 10, 8);
-  const mesh = new THREE.Mesh(geo, material);
+function createJoint(pos: [number, number, number], r: number, mat: THREE.Material): THREE.Mesh {
+  const geo = new THREE.SphereGeometry(r, 10, 8);
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(...pos);
   return mesh;
 }
 
-// ── 构建骨架模型 ──────────────────────────────────────────
-// 骨架层级（自底向上，父→子自然传递变换）：
-//   root
-//   ├── 腿（固定在 root，不参与上半身动画）
-//   ├── chestGroup（躯干旋转/平移的根）
-//   │   ├── 躯干骨 + 肩膀横杆
-//   │   ├── headGroup → 脖子骨 + 头部
-//   │   ├── leftShoulderGroup → 左上臂骨 + 左肘Group → 左前臂骨 + 左手
-//   │   └── rightShoulderGroup → 右上臂骨 + 右肘Group → 右前臂骨 + 右手
+// ── 构建骨架 ──────────────────────────────────────────────
+//
+//   root（世界原点 = 髋部 y≈0）
+//   ├── 腿（固定）
+//   ├── chestGroup（原点在 root，parts.torso — 躯干旋转从髋部开始）
+//   │   ├── torsoBone: (0,0,0)→(0,0.72,0)  髋→胸
+//   │   ├── headGroup: 挂在胸顶，parts.head
+//   │   └── shoulderArmGroup: 挂在胸顶-0.06，parts.shoulders（耸肩时升降此组）
+//   │       ├── shoulderBar
+//   │       ├── leftShoulderGroup → upperArm → elbowGroup → forearm → hand
+//   │       └── rightShoulderGroup → …
 //
 function buildSkeleton(): { root: THREE.Group; parts: Record<string, THREE.Object3D> } {
   const root = new THREE.Group();
@@ -111,130 +104,86 @@ function buildSkeleton(): { root: THREE.Group; parts: Record<string, THREE.Objec
   const jointMat = new THREE.MeshPhongMaterial({ color: 0xc4b5a5, flatShading: true });
   const headMat = new THREE.MeshPhongMaterial({ color: 0xe8dcd0, flatShading: true });
 
-  const BONE_R = 0.045;   // 骨头半径
-  const JOINT_R = 0.065;  // 关节球半径
-  const HEAD_R = 0.16;    // 头部半径
+  const BR = 0.045;
+  const JR = 0.065;
 
-  // ── 腿（固定在 root，不受躯干动画影响） ──
-  const HIP_Y = 0; // root 原点即髋部高度
+  // ── 腿（在 root 里，不动） ──
+  root.add(createJoint([-0.13, 0, 0], JR, jointMat));
+  root.add(createBone([-0.13, 0, 0], [-0.13, -0.52, 0.03], BR, boneMat));
+  root.add(createJoint([-0.13, -0.52, 0.03], JR * 0.9, jointMat));
+  root.add(createBone([-0.13, -0.52, 0.03], [-0.13, -0.98, 0.05], BR * 0.85, boneMat));
 
-  // 左腿
-  const lHipJoint = createJoint([-0.13, HIP_Y, 0], JOINT_R, jointMat);
-  root.add(lHipJoint);
+  root.add(createJoint([0.13, 0, 0], JR, jointMat));
+  root.add(createBone([0.13, 0, 0], [0.13, -0.52, 0.03], BR, boneMat));
+  root.add(createJoint([0.13, -0.52, 0.03], JR * 0.9, jointMat));
+  root.add(createBone([0.13, -0.52, 0.03], [0.13, -0.98, 0.05], BR * 0.85, boneMat));
 
-  const lThigh = createBone([-0.13, HIP_Y, 0], [-0.13, -0.52, 0.03], BONE_R, boneMat);
-  root.add(lThigh);
-
-  const lKneeJoint = createJoint([-0.13, -0.52, 0.03], JOINT_R * 0.9, jointMat);
-  root.add(lKneeJoint);
-
-  const lShin = createBone([-0.13, -0.52, 0.03], [-0.13, -0.98, 0.05], BONE_R * 0.85, boneMat);
-  root.add(lShin);
-
-  // 右腿
-  const rHipJoint = createJoint([0.13, HIP_Y, 0], JOINT_R, jointMat);
-  root.add(rHipJoint);
-
-  const rThigh = createBone([0.13, HIP_Y, 0], [0.13, -0.52, 0.03], BONE_R, boneMat);
-  root.add(rThigh);
-
-  const rKneeJoint = createJoint([0.13, -0.52, 0.03], JOINT_R * 0.9, jointMat);
-  root.add(rKneeJoint);
-
-  const rShin = createBone([0.13, -0.52, 0.03], [0.13, -0.98, 0.05], BONE_R * 0.85, boneMat);
-  root.add(rShin);
-
-  // ── 躯干组（chestGroup 在 root 的 y=0.65 处，即髋部上方） ──
+  // ── chestGroup（原点在髋部，躯干旋转以髋为轴） ──
   const chestGroup = new THREE.Group();
-  chestGroup.position.set(0, 0.65, 0);
+  chestGroup.position.set(0, 0, 0);
   root.add(chestGroup);
-  parts.torso = chestGroup;
+  parts.torso = chestGroup; // torsoRotate 旋转整个 chestGroup
 
-  // 躯干骨（髋→胸）
-  const torsoBone = createBone([0, 0, 0], [0, 0.65, 0], BONE_R * 1.05, boneMat);
-  chestGroup.add(torsoBone);
+  // 躯干骨：髋(0,0,0)→胸(0,0.72,0)
+  chestGroup.add(createBone([0, 0, 0], [0, 0.72, 0], BR * 1.05, boneMat));
+  chestGroup.add(createJoint([0, 0, 0], JR, jointMat));       // 髋
+  chestGroup.add(createJoint([0, 0.72, 0], JR * 1.15, jointMat)); // 胸
 
-  // 髋关节球（躯干底部）
-  const hipCenter = createJoint([0, 0, 0], JOINT_R, jointMat);
-  chestGroup.add(hipCenter);
-
-  // 胸关节球
-  const chestJoint = createJoint([0, 0.65, 0], JOINT_R * 1.1, jointMat);
-  chestGroup.add(chestJoint);
-
-  // 肩膀横杆
-  const shoulderBar = createBone([-0.42, 0.6, 0], [0.42, 0.6, 0], BONE_R * 0.8, boneMat);
-  chestGroup.add(shoulderBar);
-  parts.shoulders = chestGroup; // 耸肩通过 chestGroup.position.y 偏移实现
-
-  // ── 头部组（挂在 chestGroup 顶部） ──
+  // ── 头部组（挂在胸顶，不受耸肩影响） ──
   const headGroup = new THREE.Group();
-  headGroup.position.set(0, 0.65, 0);
+  headGroup.position.set(0, 0.72, 0);
   chestGroup.add(headGroup);
   parts.head = headGroup;
 
-  // 脖子骨
-  const neckBone = createBone([0, 0, 0], [0, 0.18, 0], BONE_R * 0.7, boneMat);
-  headGroup.add(neckBone);
-
-  // 头
-  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 14, 10), headMat);
-  headMesh.position.set(0, 0.18 + HEAD_R * 0.6, 0);
+  headGroup.add(createBone([0, 0, 0], [0, 0.16, 0], BR * 0.7, boneMat));
+  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), headMat);
+  headMesh.position.set(0, 0.16 + 0.1, 0);
   headGroup.add(headMesh);
 
-  // ── 左臂 ──
-  const leftShoulderGroup = new THREE.Group();
-  leftShoulderGroup.position.set(-0.42, 0.6, 0);
-  chestGroup.add(leftShoulderGroup);
-  parts.leftUpperArm = leftShoulderGroup;
+  // ── 肩膀+手臂组（可升降，耸肩时只动这个，不动头和躯干骨） ──
+  const shoulderArmGroup = new THREE.Group();
+  shoulderArmGroup.position.set(0, 0.66, 0);
+  chestGroup.add(shoulderArmGroup);
+  parts.shoulders = shoulderArmGroup;
 
-  const lShoulderJoint = createJoint([0, 0, 0], JOINT_R, jointMat);
-  leftShoulderGroup.add(lShoulderJoint);
+  // 肩膀横杆
+  shoulderArmGroup.add(createBone([-0.42, 0, 0], [0.42, 0, 0], BR * 0.8, boneMat));
 
-  const lUpperBone = createBone([0, 0, 0], [0, -0.42, 0.03], BONE_R, boneMat);
-  leftShoulderGroup.add(lUpperBone);
+  // 左臂
+  const leftUpperGroup = new THREE.Group();
+  leftUpperGroup.position.set(-0.42, 0, 0);
+  shoulderArmGroup.add(leftUpperGroup);
+  parts.leftUpperArm = leftUpperGroup;
 
-  // 左肘组
+  leftUpperGroup.add(createJoint([0, 0, 0], JR, jointMat));
+  leftUpperGroup.add(createBone([0, 0, 0], [0, -0.42, 0.03], BR, boneMat));
+
   const leftElbowGroup = new THREE.Group();
   leftElbowGroup.position.set(0, -0.42, 0.03);
-  leftShoulderGroup.add(leftElbowGroup);
+  leftUpperGroup.add(leftElbowGroup);
   parts.leftForearm = leftElbowGroup;
 
-  const lElbowJoint = createJoint([0, 0, 0], JOINT_R * 0.85, jointMat);
-  leftElbowGroup.add(lElbowJoint);
+  leftElbowGroup.add(createJoint([0, 0, 0], JR * 0.85, jointMat));
+  leftElbowGroup.add(createBone([0, 0, 0], [0, -0.38, 0.02], BR * 0.85, boneMat));
+  leftElbowGroup.add(createJoint([0, -0.38, 0.02], JR * 0.8, jointMat));
 
-  const lForeBone = createBone([0, 0, 0], [0, -0.38, 0.02], BONE_R * 0.85, boneMat);
-  leftElbowGroup.add(lForeBone);
+  // 右臂
+  const rightUpperGroup = new THREE.Group();
+  rightUpperGroup.position.set(0.42, 0, 0);
+  shoulderArmGroup.add(rightUpperGroup);
+  parts.rightUpperArm = rightUpperGroup;
 
-  const lHand = createJoint([0, -0.38, 0.02], JOINT_R * 0.8, jointMat);
-  leftElbowGroup.add(lHand);
+  rightUpperGroup.add(createJoint([0, 0, 0], JR, jointMat));
+  rightUpperGroup.add(createBone([0, 0, 0], [0, -0.42, 0.03], BR, boneMat));
 
-  // ── 右臂 ──
-  const rightShoulderGroup = new THREE.Group();
-  rightShoulderGroup.position.set(0.42, 0.6, 0);
-  chestGroup.add(rightShoulderGroup);
-  parts.rightUpperArm = rightShoulderGroup;
-
-  const rShoulderJoint = createJoint([0, 0, 0], JOINT_R, jointMat);
-  rightShoulderGroup.add(rShoulderJoint);
-
-  const rUpperBone = createBone([0, 0, 0], [0, -0.42, 0.03], BONE_R, boneMat);
-  rightShoulderGroup.add(rUpperBone);
-
-  // 右肘组
   const rightElbowGroup = new THREE.Group();
   rightElbowGroup.position.set(0, -0.42, 0.03);
-  rightShoulderGroup.add(rightElbowGroup);
+  rightUpperGroup.add(rightElbowGroup);
   parts.rightForearm = rightElbowGroup;
 
-  const rElbowJoint = createJoint([0, 0, 0], JOINT_R * 0.85, jointMat);
-  rightElbowGroup.add(rElbowJoint);
-
-  const rForeBone = createBone([0, 0, 0], [0, -0.38, 0.02], BONE_R * 0.85, boneMat);
-  rightElbowGroup.add(rForeBone);
-
-  const rHand = createJoint([0, -0.38, 0.02], JOINT_R * 0.8, jointMat);
-  rightElbowGroup.add(rHand);
+  rightElbowGroup.add(createJoint([0, 0, 0], JR * 0.85, jointMat));
+  rightElbowGroup.add(createBone([0, 0, 0], [0, -0.38, 0.02], BR * 0.85, boneMat));
+  rightElbowGroup.add(createJoint([0, -0.38, 0.02], JR * 0.8, jointMat));
 
   return { root, parts };
 }
@@ -250,13 +199,15 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const frontCamRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const sideCamRef = useRef<THREE.PerspectiveCamera | null>(null);
   const partsRef = useRef<Record<string, THREE.Object3D>>({});
   const animIdRef = useRef(0);
   const clockRef = useRef(new THREE.Clock());
-  const chestBaseY = useRef(0.65); // chestGroup 在 root 中的基础 Y
 
-  // 初始化 Three.js
+  const SHOULDER_BASE_Y = 0.66;
+
+  // 初始化
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -268,10 +219,17 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
     scene.background = new THREE.Color("#111827");
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 10);
-    camera.position.set(0, 1.1, 4.0);
-    camera.lookAt(0, 0.65, 0);
-    cameraRef.current = camera;
+    // 正视相机
+    const fCam = new THREE.PerspectiveCamera(35, w / h, 0.1, 10);
+    fCam.position.set(0, 0.75, 4.8);
+    fCam.lookAt(0, 0.35, 0);
+    frontCamRef.current = fCam;
+
+    // 侧视相机
+    const sCam = new THREE.PerspectiveCamera(35, 1, 0.1, 10);
+    sCam.position.set(4.8, 0.75, 0);
+    sCam.lookAt(0, 0.35, 0);
+    sideCamRef.current = sCam;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(w, h);
@@ -281,8 +239,7 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
     container.appendChild(renderer.domElement);
 
     // 灯光
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambient);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const key = new THREE.DirectionalLight(0xffffff, 1.2);
     key.position.set(2, 3, 3);
     scene.add(key);
@@ -293,22 +250,21 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
     rim.position.set(0, 0.5, -2);
     scene.add(rim);
 
-    // 地面参考网格
-    const gridHelper = new THREE.PolarGridHelper(1.5, 24, 16, 64, 0x333355, 0x333355);
-    gridHelper.position.y = -0.98;
-    scene.add(gridHelper);
+    // 地面网格
+    const grid = new THREE.PolarGridHelper(1.5, 24, 16, 64, 0x333355, 0x333355);
+    grid.position.y = -0.98;
+    scene.add(grid);
 
     const { root, parts } = buildSkeleton();
     scene.add(root);
     partsRef.current = parts;
-    chestBaseY.current = 0.65;
 
     const handleResize = () => {
       const cw = container.clientWidth || 280;
       const ch = container.clientHeight || 360;
       renderer.setSize(cw, ch);
-      camera.aspect = cw / ch;
-      camera.updateProjectionMatrix();
+      fCam.aspect = cw / ch;
+      fCam.updateProjectionMatrix();
     };
     window.addEventListener("resize", handleResize);
 
@@ -322,16 +278,17 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
     };
   }, []);
 
-  // 动画循环
+  // 动画循环（含双视角渲染）
   useEffect(() => {
     const cfg = ANIMS[type];
     if (!cfg) return;
 
     const parts = partsRef.current;
     const scene = sceneRef.current;
-    const camera = cameraRef.current;
+    const fCam = frontCamRef.current;
+    const sCam = sideCamRef.current;
     const renderer = rendererRef.current;
-    if (!scene || !camera || !renderer) return;
+    if (!scene || !fCam || !sCam || !renderer) return;
 
     const duration = 3.0;
     let elapsed = 0;
@@ -366,11 +323,13 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
       setRot(parts.head, cfg.headRotate);
       if (cfg.headTranslate) setPos(parts.head, cfg.headTranslate);
 
-      // 耸肩：抬高 chestGroup（躯干+肩+头+手臂全部跟着升高）
+      // 耸肩：只升降 shoulderArmGroup
       if (cfg.shoulderY) {
-        const sy = lerpArr(cfg.shoulderY.map((v) => [0, v, 0]), t);
-        if (parts.shoulders) parts.shoulders.position.y = chestBaseY.current + sy[1];
-        // 肩部上移时手臂也跟着上移（因为它们都在 chestGroup 内，自动跟随）
+        const sy = lerpArr(
+          cfg.shoulderY.map((v) => [0, v, 0]),
+          t,
+        );
+        if (parts.shoulders) parts.shoulders.position.y = SHOULDER_BASE_Y + sy[1];
       }
 
       setRot(parts.leftUpperArm, cfg.leftUpperArm);
@@ -383,7 +342,35 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
         if (parts.torso) parts.torso.rotation.set(rx, ry, rz);
       }
 
-      renderer.render(scene, camera);
+      // ── 双视角渲染 ──
+      const el = renderer.domElement;
+      const W = el.width;
+      const H = el.height;
+
+      // 1. 正面（全屏）
+      renderer.setViewport(0, 0, W, H);
+      renderer.setScissor(0, 0, W, H);
+      renderer.setScissorTest(false);
+      renderer.render(scene, fCam);
+
+      // 2. 侧面（右下角小窗，约 28% 面积）
+      const sw = Math.round(W * 0.28);
+      const sh = Math.round(H * 0.38);
+      const sx = W - sw - 8;
+      const sy = H - sh - 8;
+
+      renderer.setViewport(sx, sy, sw, sh);
+      renderer.setScissor(sx, sy, sw, sh);
+      renderer.setScissorTest(true);
+
+      // 侧面小窗暗底
+      const oldBg = scene.background;
+      scene.background = new THREE.Color("#0f172a");
+      renderer.render(scene, sCam);
+      scene.background = oldBg;
+
+      renderer.setScissorTest(false);
+
       animIdRef.current = requestAnimationFrame(loop);
     };
 
@@ -392,9 +379,13 @@ export function ExerciseModel3D({ type, playing, title }: Props) {
   }, [type, playing]);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center">
-      <div ref={containerRef} className="w-full flex-1 min-h-[320px]" />
-      <p className="text-gray-400 text-sm mt-3">{title ?? "标准姿势演示"}</p>
+    <div className="w-full h-full flex flex-col items-center justify-center relative">
+      <div ref={containerRef} className="w-full flex-1 min-h-[320px] relative" />
+      {/* 侧视图标签 */}
+      <span className="absolute bottom-2 right-2 text-[10px] text-gray-500 bg-dark-900/70 px-1.5 py-0.5 rounded pointer-events-none select-none">
+        侧面
+      </span>
+      <p className="text-gray-400 text-sm mt-1">{title ?? "标准姿势演示"}</p>
     </div>
   );
 }
