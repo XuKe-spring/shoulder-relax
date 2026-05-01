@@ -27,11 +27,11 @@ const ANIMS: Record<string, AnimConfig> = {
   },
   "chest-open": {
     leftUpperArm: [[0, 0, 0], [-0.5, 0, -1.0], [0, 0, 0]],
-    rightUpperArm: [[0, 0, 0], [0.5, 0, 1.0], [0, 0, 0]],
+    rightUpperArm: [[0, 0, 0], [0.5, 0, -1.0], [0, 0, 0]],
   },
   "scapula-squeeze": {
     leftUpperArm: [[0, 0, 0], [-0.3, 0, -0.8], [0, 0, 0]],
-    rightUpperArm: [[0, 0, 0], [0.3, 0, 0.8], [0, 0, 0]],
+    rightUpperArm: [[0, 0, 0], [0.3, 0, -0.8], [0, 0, 0]],
   },
   "chin-tuck": { headTranslate: [[0, 0, 0], [0, -0.08, 0.18], [0, 0, 0]] },
   "arm-raise": {
